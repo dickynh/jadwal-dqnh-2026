@@ -9,7 +9,11 @@
         body { background: var(--bg); color: white; font-family: sans-serif; padding: 20px; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
         h1 { color: var(--primary); margin-bottom: 10px; }
         .status { font-size: 1.2rem; margin: 20px 0; padding: 15px; background: var(--card); border-radius: 10px; border: 1px solid #333; }
-        .next-class { font-size: 1.5rem; font-weight: bold; color: #fff; margin-top: 10px; }
+        #currentDay { font-size: 1.5rem; font-weight: bold; color: var(--primary); margin-bottom: 5px; }
+        #currentDate { font-size: 1.2rem; color: #ccc; margin-bottom: 10px; }
+        #currentTime { font-size: 2rem; font-family: monospace; letter-spacing: 2px; }
+        .next-class { font-size: 1.3rem; font-weight: bold; color: #fff; margin-top: 15px; }
+        .next-time { font-size: 1rem; color: #aaa; margin-top: 5px; }
         button { background: var(--primary); color: #000; border: none; padding: 15px 30px; font-size: 1rem; font-weight: bold; border-radius: 25px; cursor: pointer; width: 100%; max-width: 300px; margin: 20px auto; display: block; }
         button.active { background: #ff4757; }
         .footer { margin-top: auto; font-size: 0.8rem; color: #777; }
@@ -19,8 +23,11 @@
     <h1>🔔 Pengingat Jadwal Pak Dicky</h1>
     
     <div class="status">
+        <div id="currentDay">--</div>
+        <div id="currentDate">--</div>
         <div id="currentTime">--:--:--</div>
         <div class="next-class" id="nextClassInfo">Menunggu aktivasi...</div>
+        <div class="next-time" id="nextTimeInfo"></div>
     </div>
 
     <button id="toggleBtn" onclick="toggleAlarm()">AKTIFKAN PENGINGAT</button>
@@ -69,21 +76,41 @@
             if (!isActive) return;
 
             const now = new Date();
-            const day = now.getDay();
+            
+            // Update tampilan hari, tanggal, dan waktu
+            const dayName = now.toLocaleDateString('id-ID', { weekday: 'long' });
+            const dateFull = now.toLocaleDateString('id-ID', { 
+                day: 'numeric', month: 'long', year: 'numeric' 
+            });
+            const timeStr = now.toLocaleTimeString('id-ID', { hour12: false });
+
+            document.getElementById('currentDay').textContent = dayName;
+            document.getElementById('currentDate').textContent = dateFull;
+            document.getElementById('currentTime').textContent = timeStr;
+
+            const dayNum = now.getDay();
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const currentTimeStr = `${hours}:${minutes}`;
 
-            document.getElementById('currentTime').textContent = 
-                `${now.toLocaleDateString('id-ID', {weekday:'long'})} ${currentTimeStr}:${String(now.getSeconds()).padStart(2,'0')}`;
-
-            const todaySchedules = schedule.filter(s => s.day === day);
+            const todaySchedules = schedule.filter(s => s.day === dayNum);
             const next = todaySchedules.find(s => s.time > currentTimeStr);
-            document.getElementById('nextClassInfo').textContent = next 
-                ? `Kelas Berikutnya: ${next.time} WIB` 
-                : "Tidak ada kelas lagi hari ini";
+            
+            // Update info kelas berikutnya
+            if (next) {
+                // Ekstrak nama kelas dari pesan suara untuk ditampilkan
+                const classNameMatch = next.msg.match(/kelas\s+(.+)/i);
+                const className = classNameMatch ? classNameMatch[1] : 'Kelas';
+                
+                document.getElementById('nextClassInfo').textContent = className;
+                document.getElementById('nextTimeInfo').textContent = `Pukul ${next.time} WIB`;
+            } else {
+                document.getElementById('nextClassInfo').textContent = "Tidak ada kelas lagi hari ini";
+                document.getElementById('nextTimeInfo').textContent = "";
+            }
 
-            const currentSchedule = todaySchedules.find(s => s.time === currentTimeStr);
+            // Trigger suara saat jam tepat
+            const currentSchedule = todaySchedules.find(s => s.time === currentTimeStr && now.getSeconds() === 0);
             if (currentSchedule && lastNotified !== currentSchedule.time) {
                 speak(currentSchedule.msg);
                 lastNotified = currentSchedule.time;
@@ -114,44 +141,21 @@
         setInterval(checkSchedule, 1000);
         checkSchedule();
     </script>
+    
+    <!-- PROTEKSI KLIK KANAN & INSPECT ELEMENT -->
     <script>
-    // PROTEKSI KLIK KANAN & INSPECT ELEMENT
-    document.addEventListener('contextmenu', function(e) {
-        e.preventDefault();
-        alert('⚠️ PERINGATAN HAK CIPTA!\n\nAplikasi Jadwal Mengajar Pak Dicky dilindungi oleh hak cipta.\nDilarang keras menyalin, memodifikasi, atau mendistribusikan kode sumber tanpa izin tertulis.\n\nUntuk akses resmi, silakan hubungi Pak Dicky Nofyan Hidayat.');
-    });
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            alert('⚠️ PERINGATAN HAK CIPTA!\n\nAplikasi Jadwal Mengajar Pak Dicky dilindungi oleh hak cipta.\nDilarang keras menyalin, memodifikasi, atau mendistribusikan kode sumber tanpa izin tertulis.\n\nUntuk akses resmi, silakan hubungi Pak Dicky Nofyan Hidayat.');
+        });
 
-    // BLOKIR SHORTCUT KEYBOARD (Ctrl+U, Ctrl+S, F12, dll)
-    document.addEventListener('keydown', function(e) {
-        // Blokir Ctrl+U (View Source), Ctrl+S (Save Page), Ctrl+Shift+I (DevTools)
-        if ((e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'i')) || 
-            e.key === 'F12') {
-            e.preventDefault();
-            alert('🔒 Fitur ini telah dinonaktifkan demi keamanan aplikasi.');
-        }
-    });
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'i')) || 
+                e.key === 'F12') {
+                e.preventDefault();
+                alert('🔒 Fitur ini telah dinonaktifkan demi keamanan aplikasi.');
+            }
+        });
     </script>
-    <script>
-    // DETEKSI DEVTOOLS & CEKUK HARIAN
-    const element = new Image();
-    Object.defineProperty(element, 'id', {
-        get: function() {
-            document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#000;color:red;font-size:2rem;text-align:center;padding:20px;">⚠️ AKSES DITOLAK ⚠️<br><br>Aplikasi ini dilindungi hak cipta.<br>Penggunaan Developer Tools terdeteksi.<br>Silakan hubungi Pak Dicky untuk akses resmi.</div>';
-            throw new Error('DevTools Detected');
-        }
-    });
-    console.log('%c', element);
-    
-    // BLOKIR SHORTCUT INSPECT
-    document.addEventListener('keydown', e => {
-        if(e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) || 
-           (e.ctrlKey && e.key.toLowerCase() === 'u')) {
-            e.preventDefault();
-            alert('🔒 Fitur Developer Tools dinonaktifkan demi keamanan.');
-        }
-    });
-    </script>
-    
-    
 </body>
 </html>
