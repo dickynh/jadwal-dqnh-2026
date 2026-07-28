@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jadwal Mengajar DickyNH</title>
+    <style>
+        :root { --primary: #00d4ff; --bg: #1a1a1a; --card: #2a2a2a; }
+        body { background: var(--bg); color: white; font-family: sans-serif; padding: 20px; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
+        h1 { color: var(--primary); margin-bottom: 10px; }
+        .status { font-size: 1.2rem; margin: 20px 0; padding: 15px; background: var(--card); border-radius: 10px; border: 1px solid #333; }
+        .next-class { font-size: 1.5rem; font-weight: bold; color: #fff; margin-top: 10px; }
+        button { background: var(--primary); color: #000; border: none; padding: 15px 30px; font-size: 1rem; font-weight: bold; border-radius: 25px; cursor: pointer; width: 100%; max-width: 300px; margin: 20px auto; display: block; }
+        button.active { background: #ff4757; }
+        .footer { margin-top: auto; font-size: 0.8rem; color: #777; }
+    </style>
+</head>
+<body>
+    <h1>🔔 Pengingat Jadwal Pak Dicky</h1>
+    
+    <div class="status">
+        <div id="currentTime">--:--:--</div>
+        <div class="next-class" id="nextClassInfo">Menunggu aktivasi...</div>
+    </div>
+
+    <button id="toggleBtn" onclick="toggleAlarm()">AKTIFKAN PENGINGAT</button>
+
+    <div class="footer">Guru Pengampu: Dicky Nofyan Hidayat, ST., Gr.</div>
+
+    <script>
+        // DATA JADWAL PAK DICKY (Bisa ditambah/diedit sesuai tabel aSc)
+        const schedule = [
+            { day: 1, time: "07:45", msg: "Halo Pak Dicky, jam 07.50 mengajar INF di kelas 10-AGTAN-3" },
+            { day: 1, time: "12:25", msg: "Pak Dicky, jam 12.30 mengajar KKA di kelas 10-AGTAN-2" },
+            { day: 1, time: "14:15", msg: "Pak Dicky, jam 14.20 mengajar INF di kelas 10-AGTAN-1" },
+            { day: 2, time: "09:35", msg: "Pak Dicky, jam 09.40 mengajar KKA di kelas 10-KHU-2" },
+            { day: 2, time: "12:25", msg: "Pak Dicky, jam 12.30 mengajar KKA di kelas 10-KHU-1" },
+            { day: 2, time: "14:15", msg: "Pak Dicky, jam 14.20 mengajar INF di kelas 10-KHU-1" },
+            { day: 3, time: "08:45", msg: "Pak Dicky, jam 08.50 mengajar INF di kelas 10-KHU-3" },
+            { day: 3, time: "16:40", msg: "Pak Dicky, jam 16.45 mengajar KKA di kelas 10-KHU-3" },
+            { day: 4, time: "07:45", msg: "Pak Dicky, jam 07.50 mengajar INF di kelas 10-KHU-2" },
+            { day: 4, time: "14:15", msg: "Pak Dicky, jam 14.20 mengajar KKA di kelas 10-AGTAN-3" },
+            { day: 5, time: "06:55", msg: "Pak Dicky, jam 07.00 mengajar INF di kelas 10-AGTAN-2" },
+            { day: 5, time: "13:10", msg: "Pak Dicky, jam 13.15 mengajar KKA di kelas 10-AGTAN-1" }
+        ];
+
+        let isActive = false;
+        let lastNotified = "";
+
+        function toggleAlarm() {
+            isActive = !isActive;
+            const btn = document.getElementById('toggleBtn');
+            if (isActive) {
+                btn.textContent = "MATIKAN PENGINGAT";
+                btn.classList.add('active');
+                requestWakeLock(); // Minta izin agar layar/sistem tidak tidur total
+                speak("Pengingat jadwal telah diaktifkan");
+            } else {
+                btn.textContent = "AKTIFKAN PENGINGAT";
+                btn.classList.remove('active');
+            }
+        }
+
+        function checkSchedule() {
+            if (!isActive) return;
+
+            const now = new Date();
+            const day = now.getDay(); // 0=Minggu, 1=Senin, dst
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const currentTimeStr = `${hours}:${minutes}`;
+
+            document.getElementById('currentTime').textContent = 
+                `${now.toLocaleDateString('id-ID', {weekday:'long'})} ${currentTimeStr}:${String(now.getSeconds()).padStart(2,'0')}`;
+
+            // Cari jadwal hari ini
+            const todaySchedules = schedule.filter(s => s.day === day);
+            
+            // Update info kelas berikutnya
+            const next = todaySchedules.find(s => s.time > currentTimeStr);
+            document.getElementById('nextClassInfo').textContent = next 
+                ? `Kelas Berikutnya: ${next.time} WIB` 
+                : "Tidak ada kelas lagi hari ini";
+
+            // Cek apakah sudah waktunya ngomong
+            const currentSchedule = todaySchedules.find(s => s.time === currentTimeStr);
+            if (currentSchedule && lastNotified !== currentSchedule.time) {
+                speak(currentSchedule.msg);
+                lastNotified = currentSchedule.time;
+                
+                // Getar HP kalau support
+                if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+            }
+        }
+
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Hentikan suara sebelumnya
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID'; // Bahasa Indonesia
+                utterance.rate = 0.9; // Sedikit diperlambat biar jelas
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Wake Lock API agar aplikasi tetap jalan saat layar mati (Chrome Android)
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {
+                console.log('Wake Lock ditolak:', err);
+            }
+        }
+
+        // Jalankan pengecekan setiap detik
+        setInterval(checkSchedule, 1000);
+        checkSchedule();
+    </script>
+</body>
+</html>
